@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DOGE/USDT Daily-Interest Simulator (Client‑Only)</title>
+  <style>
+    :root{
+      --bg:#0b0f14;--panel:#111827;--muted:#9aa4b2;--text:#e5e7eb;--accent:#4f46e5;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;
+      --br:16px
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b0f14,#0c111a);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji"}
+    .wrap{max-width:1100px;margin:32px auto;padding:0 16px}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:var(--br);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    h1{font-size:20px;margin:0}
+    .muted{color:var(--muted)}
+    .grid{display:grid;gap:12px}
+    @media(min-width:880px){.grid{grid-template-columns:1.1fr .9fr}}
+    .pane{padding:16px}
+    label{display:block;font-weight:600;margin-bottom:6px}
+    input,select,button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#0f1622;color:var(--text)}
+    input:focus,select:focus,button:focus{outline:2px solid var(--accent);outline-offset:1px}
+    .row{display:grid;gap:12px;grid-template-columns:repeat(2,1fr)}
+    .row3{display:grid;gap:12px;grid-template-columns:repeat(3,1fr)}
+    .actions{display:flex;gap:10px;margin-top:10px}
+    button.primary{background:var(--accent);border:none;font-weight:700;cursor:pointer}
+    button.secondary{background:#0f1622;border:1px solid rgba(255,255,255,.18);cursor:pointer}
+    button:disabled{opacity:.65;cursor:not-allowed}
+    .status{margin-top:8px;font-size:13px}
+    .status.ok{color:var(--ok)}
+    .status.warn{color:var(--warn)}
+    .status.err{color:var(--err)}
+
+    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    thead th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);text-align:right}
+    thead th:first-child, tbody td:first-child{text-align:left}
+    tbody td{padding:10px 12px;background:#0f1622;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}
+    tbody tr td:first-child{border-left:1px solid rgba(255,255,255,.08);border-top-left-radius:10px;border-bottom-left-radius:10px}
+    tbody tr td:last-child{border-right:1px solid rgba(255,255,255,.08);border-top-right-radius:10px;border-bottom-right-radius:10px}
+    tfoot td{padding:12px;border-top:1px dashed rgba(255,255,255,.25)}
+    .mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+    .small{font-size:12px}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(79,70,229,.18);border:1px solid rgba(79,70,229,.45)}
+    .right{float:right}
+    .footer{margin-top:18px;color:var(--muted);font-size:12px}
+    .inline{display:inline-flex;gap:6px;align-items:center}
+    .link{color:#93c5fd;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>DOGE/USD daily interest — client‑only</h1>
+      <div class="muted small">No server • CORS‑enabled public APIs • UTC‑safe</div>
+    </div>
+
+    <div class="grid">
+      <div class="card pane">
+        <div class="row">
+          <div>
+            <label for="debt">Debt principal</label>
+            <input id="debt" type="number" min="0" step="0.01" value="50" />
+          </div>
+          <div>
+            <label for="days">Days (completed)</label>
+            <input id="days" type="number" min="1" step="1" value="14" />
+          </div>
+        </div>
+
+        <div class="row3" style="margin-top:12px">
+          <div>
+            <label for="k">k (volatility scale)</label>
+            <input id="k" type="number" step="0.01" value="0.25" />
+          </div>
+          <div>
+            <label for="leverage">Synthetic leverage</label>
+            <input id="leverage" type="number" step="0.1" value="1.0" />
+          </div>
+          <div>
+            <label for="source">Price source</label>
+            <select id="source">
+              <option value="kraken">Kraken OHLC (DOGEUSD)</option>
+              <option value="coingecko">CoinGecko Market Chart</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label for="minRate">Min daily rate (%)</label>
+            <input id="minRate" type="number" step="0.1" value="1" />
+          </div>
+          <div>
+            <label for="maxRate">Max daily rate (%)</label>
+            <input id="maxRate" type="number" step="0.1" value="6" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="run" class="primary">Compute</button>
+          <button id="exportCsv" class="secondary" disabled>Export CSV</button>
+          <span id="status" class="status"></span>
+        </div>
+
+        <div class="footer">
+          Completed days only — today (UTC) is excluded automatically. All times are handled in UTC.
+        </div>
+      </div>
+
+      <div class="card pane">
+        <div class="header">
+          <div class="inline"><strong>Results</strong><span id="meta" class="pill mono small"></span></div>
+          <div id="totals" class="mono small muted"></div>
+        </div>
+        <div id="tableWrap" class="mono small"></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>APIs used: <a class="link" href="https://api.kraken.com/0/public/OHLC?pair=DOGEUSD&interval=1440" target="_blank" rel="noopener">Kraken OHLC</a>, <a class="link" href="https://www.coingecko.com/en/api/documentation" target="_blank" rel="noopener">CoinGecko</a>. Both support cross‑origin requests.</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const $ = (sel)=>document.querySelector(sel);
+  const fmtPct = (x)=>x.toFixed(4);
+  const fmtNum = (x, d=6)=>Number(x).toFixed(d);
+  const fmtMoney = (x)=>Number(x).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const todayUTCStr = ()=> new Date().toISOString().split('T')[0]; // YYYY-MM-DD in UTC
+
+  const statusEl = $('#status');
+  const metaEl = $('#meta');
+  const totalsEl = $('#totals');
+  const tableWrap = $('#tableWrap');
+
+  function setStatus(msg, kind=''){ statusEl.textContent = msg; statusEl.className = 'status ' + kind; }
+  function setMeta(s){ metaEl.textContent = s || ''; }
+  function setTotals(s){ totalsEl.textContent = s || ''; }
+
+  async function fetchKraken(){
+    const url = 'https://api.kraken.com/0/public/OHLC?pair=DOGEUSD&interval=1440&_=' + Date.now();
+    const res = await fetch(url, {mode:'cors'});
+    if(!res.ok) throw new Error('Kraken HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error && data.error.length) throw new Error('Kraken: ' + data.error.join(', '));
+    const result = data.result || {};
+    const key = Object.keys(result).find(k => k !== 'last');
+    if(!key) throw new Error('Kraken format unexpected');
+    // rows: [time, open, high, low, close, vwap, volume, count]
+    const rows = result[key].map(r => ({
+      date: new Date(r[0]*1000).toISOString().split('T')[0],
+      close: Number(r[4])
+    }));
+    return {source:'Kraken', rows};
+  }
+
+  async function fetchCoinGecko(days){
+    // Request a bit more than needed to be safe (days+3)
+    const want = Math.max(2, Number(days)+3|0);
+    const url = `https://api.coingecko.com/api/v3/coins/dogecoin/market_chart?vs_currency=usd&days=${want}&interval=daily&_=${Date.now()}`;
+    const res = await fetch(url, {mode:'cors'});
+    if(!res.ok) throw new Error('CoinGecko HTTP ' + res.status);
+    const data = await res.json();
+    const rows = (data.prices||[]).map(([ms, price])=>({
+      date: new Date(ms).toISOString().split('T')[0],
+      close: Number(price)
+    }));
+    return {source:'CoinGecko', rows};
+  }
+
+  function excludeToday(rows){
+    const today = todayUTCStr();
+    return rows.filter(r => r.date < today);
+  }
+
+  function computeRates(rows, {days, k, leverage, minRate, maxRate}){
+    // Need days + 1 closes to produce `days` changes
+    if(rows.length < days + 1) throw new Error('Not enough completed daily candles.');
+    const sliced = rows.slice(- (days + 1));
+    const out = [];
+    for(let i=1;i<sliced.length;i++){
+      const curr = sliced[i];
+      const prev = sliced[i-1];
+      const pctMove = Math.abs((curr.close - prev.close) / prev.close) * 100;
+      const raw = leverage * pctMove * k;
+      const rate = Math.max(minRate, Math.min(maxRate, raw));
+      out.push({
+        date: curr.date,
+        close: curr.close,
+        pct_move_abs: Number(pctMove.toFixed(6)),
+        raw_rate: Number(raw.toFixed(6)),
+        rate: Number(rate.toFixed(6))
+      });
+    }
+    return out;
+  }
+
+  function renderTable(rows, debt){
+    if(!rows.length){ tableWrap.innerHTML=''; return; }
+    let total = 0;
+    const trs = rows.map(r => {
+      const interest = debt * (r.rate/100);
+      total += interest;
+      return `<tr>
+        <td>${r.date}</td>
+        <td class="mono" style="text-align:right">${fmtNum(r.close,6)}</td>
+        <td class="mono" style="text-align:right">${fmtPct(r.pct_move_abs)}</td>
+        <td class="mono" style="text-align:right">${fmtPct(r.raw_rate)}</td>
+        <td class="mono" style="text-align:right">${fmtPct(r.rate)}</td>
+        <td class="mono" style="text-align:right">${fmtMoney(interest)}</td>
+      </tr>`;
+    }).join('');
+
+    tableWrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Close</th>
+            <th>Move %</th>
+            <th>Raw %</th>
+            <th>Rate %</th>
+            <th>Interest</th>
+          </tr>
+        </thead>
+        <tbody>${trs}</tbody>
+      </table>`;
+
+    setTotals(`Total interest: $${fmtMoney(total)}`);
+    $('#exportCsv').disabled = false;
+    return total;
+  }
+
+  function toCSV(rows, debt){
+    const header = ['date','close','pct_move_abs_%','raw_rate_%','rate_%','interest'];
+    const lines = [header.join(',')];
+    for(const r of rows){
+      const interest = debt * (r.rate/100);
+      lines.push([
+        r.date,
+        r.close,
+        r.pct_move_abs.toFixed(6),
+        r.raw_rate.toFixed(6),
+        r.rate.toFixed(6),
+        interest.toFixed(2)
+      ].join(','));
+    }
+    return lines.join('\n');
+  }
+
+  async function run(){
+    try{
+      setStatus('Fetching…'); setMeta(''); setTotals(''); tableWrap.innerHTML=''; $('#exportCsv').disabled=true;
+      const debt = Number($('#debt').value||0);
+      const days = Math.max(1, Number($('#days').value||14));
+      const k = Number($('#k').value||0);
+      const leverage = Number($('#leverage').value||1);
+      const minRate = Number($('#minRate').value||0);
+      const maxRate = Number($('#maxRate').value||100);
+      const src = $('#source').value;
+
+      let data;
+      if(src === 'kraken'){
+        try { data = await fetchKraken(); }
+        catch(e){ setStatus('Kraken failed, trying CoinGecko…', 'warn'); data = await fetchCoinGecko(days+2); }
+      } else {
+        data = await fetchCoinGecko(days+2);
+      }
+
+      const rowsCompleted = excludeToday(data.rows);
+      const rates = computeRates(rowsCompleted, {days, k, leverage, minRate, maxRate});
+      const total = renderTable(rates, debt);
+      setMeta(`${data.source} • debt $${fmtMoney(debt)} • days ${days} • k ${k} • lev ${leverage} • clamp [${minRate}%, ${maxRate}%]`);
+      setStatus(`OK — ${rates.length} rows`, 'ok');
+
+      // hook CSV export
+      $('#exportCsv').onclick = () => {
+        const csv = toCSV(rates, debt);
+        const blob = new Blob([csv], {type:'text/csv'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `doge_interest_${todayUTCStr()}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      };
+    } catch(err){
+      console.error(err);
+      setStatus(err.message || String(err), 'err');
+    }
+  }
+
+  $('#run').addEventListener('click', run);
+  // auto-run on load for convenience
+  run();
+})();
+</script>
+</body>
+</html>
