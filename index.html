@@ -62,7 +62,7 @@
         <div class="row">
           <div>
             <label for="debt">Debt principal</label>
-            <input id="debt" type="number" min="0" step="0.01" value="50" />
+            <input id="debt" type="number" min="0" step="0.01" value="1000" />
           </div>
           <div>
             <label for="days">Days (completed)</label>
@@ -73,7 +73,7 @@
         <div class="row3" style="margin-top:12px">
           <div>
             <label for="k">k (volatility scale)</label>
-            <input id="k" type="number" step="0.01" value="0.25" />
+            <input id="k" type="number" step="0.01" value="1" />
           </div>
           <div>
             <label for="leverage">Synthetic leverage</label>
@@ -94,8 +94,9 @@
             <input id="minRate" type="number" step="0.1" value="1" />
           </div>
           <div>
-            <label for="maxRate">Max daily rate (%)</label>
+            <label for="maxRate">Max daily rate (%) <span class="small muted">(uncheck cap to disable)</span></label>
             <input id="maxRate" type="number" step="0.1" value="6" />
+            <label class="small inline" style="margin-top:6px"><input type="checkbox" id="capMax" checked style="margin-right:6px"> Cap enabled</label>
           </div>
         </div>
 
@@ -187,7 +188,8 @@
       const prev = sliced[i-1];
       const pctMove = Math.abs((curr.close - prev.close) / prev.close) * 100;
       const raw = leverage * pctMove * k;
-      const rate = Math.max(minRate, Math.min(maxRate, raw));
+      const capped = Math.min(maxRate, raw);
+      const rate = Math.max(minRate, capped);
       out.push({
         date: curr.date,
         close: curr.close,
@@ -260,7 +262,8 @@
       const k = Number($('#k').value||0);
       const leverage = Number($('#leverage').value||1);
       const minRate = Number($('#minRate').value||0);
-      const maxRate = Number($('#maxRate').value||100);
+      const capMax  = $('#capMax') ? $('#capMax').checked : true;
+      const maxRate = capMax ? Number($('#maxRate').value||100) : Infinity;
       const src = $('#source').value;
 
       let data;
@@ -274,7 +277,7 @@
       const rowsCompleted = excludeToday(data.rows);
       const rates = computeRates(rowsCompleted, {days, k, leverage, minRate, maxRate});
       const total = renderTable(rates, debt);
-      setMeta(`${data.source} • debt $${fmtMoney(debt)} • days ${days} • k ${k} • lev ${leverage} • clamp [${minRate}%, ${maxRate}%]`);
+      setMeta(`${data.source} • debt $${fmtMoney(debt)} • days ${days} • k ${k} • lev ${leverage} • clamp [${minRate}%, ${maxRate === Infinity ? 'no max' : maxRate + '%' }]`);
       setStatus(`OK — ${rates.length} rows`, 'ok');
 
       // hook CSV export
@@ -295,6 +298,14 @@
   }
 
   $('#run').addEventListener('click', run);
+  // toggle max input enable/disable
+  const capEl = document.querySelector('#capMax');
+  if (capEl){
+    const maxEl = document.querySelector('#maxRate');
+    const sync = () => { maxEl.disabled = !capEl.checked; };
+    capEl.addEventListener('change', sync);
+    sync();
+  }
   // auto-run on load for convenience
   run();
 })();
